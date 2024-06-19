@@ -76,6 +76,15 @@ class AutoRecord {
         $this->_primaryKey = $columnRules['__primarykey'];
     }
 
+    public function __sleep()
+    {
+        // Exclude the _sqlResource property from serialization
+        $properties = get_object_vars($this);
+        unset($properties['_sqlResource']);
+
+        return array_keys($properties);
+    }
+
     private function initAttrsEmpty() {
         foreach ($this->_columnRules as $key => $value) {
             $this->_attributes[$key] = null;

@@ -50,6 +50,15 @@ class AutoDb {
         $this->_connectionIdent = $connectionIdent;
     }
 
+    public function __sleep()
+    {
+        // Exclude the _sqlResource property from serialization
+        $properties = get_object_vars($this);
+        unset($properties['_sqlResource']);
+
+        return array_keys($properties);
+    }
+
     /**
      *
      * @param mysqli $sqlResource - one MySQL connection <-> One AutoDb instance
