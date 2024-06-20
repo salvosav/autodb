@@ -251,7 +251,7 @@ class AutoDb {
         }
 
         if (static::isPgsqlResource($this->_sqlResource)) {
-            $query = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS where table_name = '" . pg_escape_string($this->_sqlResource, $table) . "';";
+            $query = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS where table_name = '" . pg_escape_string($this->_sqlResource, $table) . "' order by ordinal_position;";
 
             $res = pg_query($this->_sqlResource, $query);
 
