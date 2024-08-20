@@ -52,6 +52,7 @@ Limitations:
     **Functionality**
     Library Configuration:
         When AUTODB_ALLOW_PG_COMPOSITE_PK is set to true, autodb permits the use of composite primary keys.
+        If it is not defined (default behaviour) or set to false, composite primary keys are not allowed.
 
     Conditions for Composite PK:
         - autodb imposes specific conditions for composite primary keys:
