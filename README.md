@@ -14,6 +14,8 @@ Old Stable: 000.030 (for previous PHP versions)
 
 PostgreSQL support (php-pgsql (pg_connect, resource), NOT php-pdo-pgsql) from: 000.042
 
+Composite Primary Key from: 1.0.0.3
+
 LIMITATIONS TO BE AWARE OF BEFORE YOU WOULD USE:
 
     This is not ORM. Just an active record pattern, it doesn't support joins on purpose.
@@ -33,6 +35,35 @@ LIMITATIONS TO BE AWARE OF BEFORE YOU WOULD USE:
     Supports MySQL through mysqli and PostgreSQL through pg_connect + resource
     PDO is not supported, and is not planned to be supported
     For now, type checking is very basic, will improve
+
+
+COMPOSITE PRIMARY KEY:
+
+Usage:
+```php
+    //In your autodb project, define the constant AUTODB_ALLOW_PG_COMPOSITE_PK:
+    define('AUTODB_ALLOW_PG_COMPOSITE_PK', true);
+```
+Limitations:
+    
+    **Purpose**
+        The constant AUTODB_ALLOW_PG_COMPOSITE_PK in autodb controls whether the library allows the use of composite primary keys in the context of database operations it manages.
+
+    **Functionality**
+    Library Configuration:
+        When AUTODB_ALLOW_PG_COMPOSITE_PK is set to true, autodb permits the use of composite primary keys.
+        If it is not defined (default behaviour) or set to false, composite primary keys are not allowed.
+
+    Conditions for Composite PK:
+        - autodb imposes specific conditions for composite primary keys:
+        - The primary key must include id_table_name as a serial (auto-incrementing integer) column.
+        - id_table_name must be the only int type column in the composite primary key.
+        - Any deviation from these conditions will result in an exception thrown by autodb.
+
+    Exception Handling:
+        If the conditions for composite primary keys are not met, autodb will throw an exception. This ensures that the usage aligns with the expected behavior and maintains integrity in database operations managed by autodb.
+
+
 
 Usage example:
 
@@ -163,3 +194,7 @@ CONCURRENT WRITE SUPPORT
     define('PGSQL_CONN_STRING', 'host=localhost port=5432 user=myuser password=mypassword'); // do not worry about conn db
     
 ```
+
+
+
+

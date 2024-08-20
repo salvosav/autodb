@@ -284,8 +284,12 @@ class AutoDb {
                                         JOIN   pg_attribute a ON a.attrelid = i.indrelid
                                                              AND a.attnum = ANY(i.indkey)
                                         WHERE  i.indrelid = '" . pg_escape_string($this->_sqlResource, $table) . "'::regclass
-                                        AND    i.indisprimary;
+                                        AND    i.indisprimary
                         ";
+
+                        if (defined('AUTODB_ALLOW_PG_COMPOSITE_PK') && AUTODB_ALLOW_PG_COMPOSITE_PK) {
+                            $priQuery .= " AND format_type(a.atttypid, a.atttypmod) ILIKE '%int%'";
+                        }
 
                         $resPri = pg_query($this->_sqlResource, $priQuery);
                         while ($priRow = pg_fetch_assoc($resPri)) {
