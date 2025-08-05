@@ -1,7 +1,7 @@
 # Autodb
 
 <h3>This is a modified version of the original dszakal/autodb</h3>
-<h3>The minimum PHP version supported is not PHP 8.1</h3>
+<h3>The minimum PHP version supported is PHP 8.1</h3>
 
 
 LATEST SUPPORTED VERSION: PHP 8.3.

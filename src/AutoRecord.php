@@ -442,8 +442,13 @@ class AutoRecord {
             return "'" . $this->escape($value) . "'";
         }
 
-        if ($default && (strlen($value ?? '') > 0 || $value !== '')) {
-            return $default; // here it contains the quotes already, :: deleted already
+        if ((strlen($value ?? '') > 0 || $value !== '')) {
+            return "'" . $this->escape($value) . "'";
+        }
+
+        // Only use default if value is null/empty
+        if ($default) {
+            return $default;
         }
 
         return "'" . $this->escape($value) . "'";
