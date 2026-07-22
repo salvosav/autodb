@@ -16,6 +16,8 @@ PostgreSQL support (php-pgsql (pg_connect, resource), NOT php-pdo-pgsql) from: 0
 
 Composite Primary Key from: 1.0.0.3
 
+Correct object-cache for loads by a non-primary-key column (secondary index) + per-worker table-definition cache from: 1.0.0.5
+
 LIMITATIONS TO BE AWARE OF BEFORE YOU WOULD USE:
 
     This is not ORM. Just an active record pattern, it doesn't support joins on purpose.
