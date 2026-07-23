@@ -13,6 +13,13 @@ class AutoDb {
      * @var array - example $this->_tableDefs[$tablename][$column1]['primary_key']
      */
     private $_tableDefs = array(); // TODO
+    // Process-wide (per-worker) table-definition cache. Schemas are immutable
+    // within a deploy, so sharing them across every AutoDb instance — including
+    // the many short-lived ones from adbNewInstance() — avoids re-running the
+    // INFORMATION_SCHEMA / pg_index introspection per instance. Keyed by
+    // connectionIdent.tablename. Reload PHP-FPM (or call clearTableDefCache())
+    // after a migration so workers pick up the new schema.
+    private static $_tableDefsShared = array();
 
     private $_redisInstance;
 
@@ -43,6 +50,11 @@ class AutoDb {
     private $_connectionIdent = 'default';
 
     private $_recordInstances = array(); // only one reference should exist for all primary key
+    // Secondary lookup index for loadRow() by a NON-primary-key column:
+    // [table][keyname][value] => primaryKeyValue. Lets a load by e.g.
+    // id_loyalty_card resolve to the record's real PK (id) and reuse the same
+    // instance, instead of falsely matching the PK-keyed _recordInstances map.
+    private $_altIndex = array();
 
     protected function __construct($sqlResource, $redisInstance = null, $connectionIdent = 'default') {
         $this->_sqlResource = $sqlResource;
@@ -196,11 +208,41 @@ class AutoDb {
         unset($this->_recordInstances[$tablename][$primarykey]);
     }
 
+    /**
+     * Remember that a load of ($tablename WHERE $keyname = $value) resolved to a
+     * record with the given real primary key, so a repeat loadRow by that same
+     * non-PK column can reuse the cached instance. See loadRow().
+     */
+    public final function _addAltIndex($tablename, $keyname, $value, $primarykey)
+    {
+        $this->_altIndex[$tablename][$keyname][$value] = $primarykey;
+    }
+
+    /** Resolve a ($tablename, $keyname, $value) to a cached record's primary key, or null. */
+    public final function getAltIndexPk($tablename, $keyname, $value)
+    {
+        return $this->_altIndex[$tablename][$keyname][$value] ?? null;
+    }
+
+    /** Drop the process-wide table-definition cache (call after a schema migration). */
+    public static function clearTableDefCache()
+    {
+        self::$_tableDefsShared = array();
+    }
+
     public function getTableDef($tablename)
     {
+        $sharedKey = $this->_connectionIdent . '.' . $tablename;
+
+        // process-wide (per-worker) cache — the fast path, populated from any
+        // source below. Schemas are immutable within a deploy.
+        if (isset(self::$_tableDefsShared[$sharedKey])) {
+            return $this->_tableDefs[$tablename] = self::$_tableDefsShared[$sharedKey];
+        }
+
         // first check current instance
         if (isset($this->_tableDefs[$tablename])) {
-            return $this->_tableDefs[$tablename];
+            return self::$_tableDefsShared[$sharedKey] = $this->_tableDefs[$tablename];
         }
 
         // check redis if any
@@ -208,7 +250,7 @@ class AutoDb {
             $tableRow = $this->_redisInstance->get('autodbdefs.' . $this->_connectionIdent . '.' . $tablename);
             if (is_array($tableRow)) {
                 $this->_tableDefs[$tablename] = $tableRow;
-                return $this->_tableDefs[$tablename];
+                return self::$_tableDefsShared[$sharedKey] = $tableRow;
             }
         }
 
@@ -219,7 +261,7 @@ class AutoDb {
                 $this->_tableDefs[$tablename],
                 $this->redisTimeout);
         }
-        return $this->_tableDefs[$tablename];
+        return self::$_tableDefsShared[$sharedKey] = $this->_tableDefs[$tablename];
     }
 
     /**

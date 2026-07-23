@@ -107,32 +107,44 @@ class AutoRecord {
         }
 
         $columnRules = $autoDb->getTableDef($table);
+        $pk = $columnRules['__primarykey'];
         $sqlr = $autoDb->getSqlResource();
-        $record = new static($autoDb, $table, $columnRules, $sqlr);
+
         // new row
         if (is_null($value)) {
+            $record = new static($autoDb, $table, $columnRules, $sqlr);
             $record->initAttrsEmpty();
             return $record;
         }
 
-        // existing row in object cache (ensuring same reference
-        if (isset($autoDb->getRecordInstances()[$table][$value])) {
-            return $autoDb->getRecordInstances()[$table][$value];
+        // Object cache — resolve to the record's PK via the CORRECT index:
+        //  - loading BY the primary key: _recordInstances is keyed by PK value.
+        //  - loading by any OTHER column: use _altIndex (keyname+value => PK).
+        // NEVER match $value against the PK-keyed map when $keyname isn't the PK:
+        // $value belongs to a different column's value-space and would return an
+        // unrelated record (the reason callers resorted to adbNewInstance()).
+        if ($keyname === $pk) {
+            if (isset($autoDb->getRecordInstances()[$table][$value])) {
+                return $autoDb->getRecordInstances()[$table][$value];
+            }
+        } else {
+            $cachedPk = $autoDb->getAltIndexPk($table, $keyname, $value);
+            if ($cachedPk !== null && isset($autoDb->getRecordInstances()[$table][$cachedPk])) {
+                return $autoDb->getRecordInstances()[$table][$cachedPk];
+            }
         }
 
+        // load from the database
+        $row = array();
         if ($sqlr instanceof mysqli) {
-            // load object from database query:
             $sqlGet = "SELECT * FROM " . $sqlr->real_escape_string($table) .
                 " WHERE " . $sqlr->real_escape_string($keyname) . " = " . (int)$value;
 
             $result = $sqlr->query($sqlGet);
-            $row = array();
             if ($result) {
                 $row = $result->fetch_assoc();
             }
-            if (!empty($row)) {
-                $record->initAttrsFromQueryRow($row);
-            } else {
+            if (empty($row)) {
                 throw new AutoDbException("AutoDb/Autorecord: error loading record with PKey: " . $sqlGet . " " . $sqlr->error);
             }
         }
@@ -142,21 +154,32 @@ class AutoRecord {
                 " WHERE " . pg_escape_string($sqlr, $keyname) . " = " . (int)$value;
 
             $result = pg_query($sqlr, $sqlGet);
-
             if ($result) {
                 $row = pg_fetch_assoc($result);
             }
-            if (!empty($row)) {
-                $record->initAttrsFromQueryRow($row);
-            } else {
-                throw new AutoDbException("AutoDb/Autorecord: error loading record with PKey: " . $sqlGet . " " .  pg_last_error($sqlr));
+            if (empty($row)) {
+                throw new AutoDbException("AutoDb/Autorecord: error loading record with PKey: " . $sqlGet . " " . pg_last_error($sqlr));
             }
-
         }
 
+        // Dedupe by the REAL primary key so exactly one instance exists per
+        // record whether it was reached via row() or rowsArray() (mirrors
+        // loadRowsWhere, and fixes loadRow's old unconditional overwrite).
+        $realPk = $row[$pk];
+        if (isset($autoDb->getRecordInstances()[$table][$realPk])) {
+            $record = $autoDb->getRecordInstances()[$table][$realPk];
+            $record->initAttrsFromQueryRow($row);
+        } else {
+            $record = new static($autoDb, $table, $columnRules, $sqlr);
+            $record->initAttrsFromQueryRow($row);
+            $autoDb->_addInstance($record); // so it will return next time the same reference
+        }
 
+        // Remember this non-PK lookup so a repeat load by the same column caches.
+        if ($keyname !== $pk) {
+            $autoDb->_addAltIndex($table, $keyname, $value, $realPk);
+        }
 
-        $autoDb->_addInstance($record); // so it will return next time the same reference
         return $record;
     }
 
