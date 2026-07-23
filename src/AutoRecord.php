@@ -442,7 +442,7 @@ class AutoRecord {
             return "'" . $this->escape($value) . "'";
         }
 
-        if ((strlen($value ?? '') > 0 || $value !== '')) {
+        if (strlen($value ?? '') > 0) {
             return "'" . $this->escape($value) . "'";
         }
 
