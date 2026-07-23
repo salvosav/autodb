@@ -97,14 +97,16 @@ Usage example:
     echo $x->dbAttrForce('username'); // 'changedPreviously' - from database
     $x->save(); // now all will be 'changedAgain'
     
-    // During save() after INSERT/UPDATE there is no SELECT to populate the columns in the database. You can force it by calling $record->forceReloadAttributes(). 
-    // (But primary key is up to date always after save(), even without calling $record->forceReloadAttributes() method)
-    $row->attr('created_at', 'NOW()');
+    // On PostgreSQL, INSERT uses RETURNING * so the object is fully synced right after save() —
+    // DB-computed columns (DEFAULT NOW(), serials, trigger outputs) are carried with no extra query.
     $row->save();
-    echo $row->attr('created_at');         // 'NOW()' :(
-    echo $row->dbAttrForce('created_at');  // '2017-03-20 11:11:11'
-    $row->forceReloadAttributes();         // the (not always required) extra query to sync column attributes
-    echo $row->attr('created_at');         // '2017-03-20 11:11:11' :)
+    echo $row->attr('created_at');         // '2017-03-20 11:11:11' :) (populated by the insert itself)
+    // UPDATE still does NOT re-select the columns; force it with $record->forceReloadAttributes()
+    // (an extra query). MySQL INSERT also still only refreshes the primary key.
+    $row->attr('some_column', 'changed');
+    $row->save();
+    echo $row->dbAttrForce('some_column'); // read a single attr straight from the db without a full reload
+    $row->forceReloadAttributes();         // the (not always required) extra query to sync all column attributes
     
     // AutoDb also supports Read only, Write once and blocked tables:
     $autoDb->addBannedTable('sensitive_table');

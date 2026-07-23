@@ -609,7 +609,7 @@ class AutoRecord {
             $values .= $this->_getCommasAndEscapes($row, $this->_attributes[$row]);
         }
 
-        $sql .= "( $colNames ) VALUES ( $values ) RETURNING " . $this->getPrimaryKey();
+        $sql .= "( $colNames ) VALUES ( $values ) RETURNING *";
         try {
             $pgReturn = pg_query($sqlr, $sql);
         } catch (Exception $e) {
@@ -619,7 +619,12 @@ class AutoRecord {
             throw new AutoDbException("AutoDb/Autorecord: pgsql - error inserting new record: " . $sql . " " . pg_last_error($sqlr));
         }
 
-        $this->_attributes[$this->getPrimaryKey()] = pg_fetch_assoc($pgReturn)[$this->getPrimaryKey()];
+        // RETURNING * so the object carries DB-computed columns (DEFAULT NOW(),
+        // serials, trigger outputs) right after insert — no second SELECT needed.
+        $returnedRow = pg_fetch_assoc($pgReturn);
+        if (is_array($returnedRow)) {
+            $this->initAttrsFromQueryRow($returnedRow);
+        }
 
         return pg_affected_rows($pgReturn);
     }
